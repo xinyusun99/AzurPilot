@@ -864,16 +864,22 @@ class IslandProjectRun(IslandUI):
         logger.warning('Island select role verification timeout')
         return False
 
-    def _project_character_confirm_if_selected(self, character):
-        check_button = self.get_character_check_button(character)
-        if check_button is None:
-            return False
+    def _project_character_confirm_if_selected(self, character, det_ocr=None):
         if not self.appear(ROLE_SELECT_CONFIRM, offset=(20, 20)):
             return False
-        if not self.appear(check_button, offset=(20, 20)):
+
+        check_button = self.get_character_check_button(character)
+        if check_button is not None and self.appear(check_button, offset=(20, 20)):
+            logger.info(f'Character {self.readable_character_name(character)} already selected')
+            return self._project_character_select(check_button=check_button)
+
+        if det_ocr is None:
+            return False
+        detail_name = self._selected_character_detail_name(det_ocr)
+        if not self.character_detail_name_match(detail_name, character):
             return False
 
-        logger.info(f'Character {self.readable_character_name(character)} already selected')
+        logger.info(f'Character {self.readable_character_name(character)} already selected by detail OCR: {detail_name}')
         return self._project_character_select(check_button=check_button)
 
     def project_character_select(self, character='manjuu'):
@@ -915,7 +921,7 @@ class IslandProjectRun(IslandUI):
                 for candidate in candidates:
                     if candidate in unavailable:
                         continue
-                    if self._project_character_confirm_if_selected(candidate):
+                    if self._project_character_confirm_if_selected(candidate, det_ocr=det_ocr):
                         return candidate
                     logger.debug(f'Checking character candidate: {self.readable_character_name(candidate)}')
                     result = self._project_character_select_from_cards(
