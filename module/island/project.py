@@ -1449,11 +1449,13 @@ class IslandProjectRun(IslandUI):
         if len(peaks) < 2:
             return ProductItem.from_ocr_results(self.device.image, project_id, product_order)
         current = ProductItem(self.device.image, peaks, project_id)
+        if not current.items:
+            return ProductItem.from_ocr_results(self.device.image, project_id, product_order)
         if not any(item.valid and item.name for item in current.items):
             return ProductItem.from_ocr_results(self.device.image, project_id, product_order)
         return current
 
-    def product_select(self, option, project_id, trial=2):
+    def product_select(self, option, project_id, trial=5):
         """
         在物品列表中选择指定产品。
 
@@ -1471,14 +1473,18 @@ class IslandProjectRun(IslandUI):
         click_interval = Timer(1)
         select_timeout = Timer(2, count=3)
         pending_option = None
+        empty_retry = trial
         for _ in self.loop():
             current = self.get_current_product(project_id)
-            if trial > 0 and not len(current.items):
-                trial -= 1
+            if empty_retry > 0 and not len(current.items):
+                empty_retry -= 1
+                logger.info(f'No product rows detected for {option}, retrying ({empty_retry})')
                 continue
-            if trial <= 0:
+            if empty_retry <= 0:
+                logger.warning(f'No product rows detected for {option}, quit product selection')
                 self.ui_ensure_management_page()
                 return False
+            empty_retry = trial
 
             if option == current.name:
                 if getattr(current, 'is_fallback', False) and pending_option != option:
@@ -1527,6 +1533,8 @@ class IslandProjectRun(IslandUI):
             if drag:
                 last_item = current
                 bottom_item = current.items[-1]
+                visible = [item.name for item in current.items if item.name]
+                logger.info(f'Product {option} not visible, visible={visible}, swiping product list')
                 self.device.click(bottom_item.button)
                 self.drag_page((0, -300), ISLAND_PRODUCT_ITEMS.area, 0.5)
 
